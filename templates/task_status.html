@@ -67,6 +67,7 @@
         {% if status == 'completed' %}
         <form action="/extraction_result" method="get">
             <input type="hidden" name="task_id" value="{{ task_id }}">
+            <input type="hidden" name="filename" value="{{ filename }}">
             <button type="submit">View Results</button>
         </form>
         {% endif %}

@@ -96,11 +96,12 @@ def task_status(task_id):
     task = tasks.get(task_id)
     if not task:
         return "Task not found", 404
-    return render_template("task_status.html", task_id=task_id, status=task['status'])
+    return render_template("task_status.html", task_id=task_id, filename=task["file_name"], status=task['status'])
 
 @app.route("/extraction_result")
 def extraction_result():
     task_id = request.args.get('task_id')
+    filename = request.args.get('filename')
     if not task_id:
         return "Task ID not provided", 400
 
