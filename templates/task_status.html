@@ -66,6 +66,7 @@
         <p>Status: <span class="{{ status }}">{{ status.replace('_', ' ').capitalize() }}</span></p>
         {% if status == 'completed' %}
         <form action="/extraction_result" method="get">
+            <input type="hidden" name="task_id" value="{{ task_id }}">
             <button type="submit">View Results</button>
         </form>
         {% endif %}

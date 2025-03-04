@@ -10,11 +10,14 @@ import folium
 from folium.plugins import TimestampedGeoJson
 from dd_recovery import DDRecovery
 
+# TODO:
+# 1. Extract dd metadata to be shown after upload
+
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads/'
-app.config["RESULTS_FOLDER"] = "output/"
+app.config["RESULTS_FOLDER"] = "results/"
 app.secret_key = 'supersecretkey'  # Needed for session management
 RECOVERED_FILES = "deleted.dd_results.csv"
+tasks = {}
 
 @app.route("/", methods=["GET", "POST"])
 def upload_file():
@@ -24,15 +27,16 @@ def upload_file():
         file = request.files['file']
         if file.filename == '':
             return "No selected file"
-        # file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file_path = file.filename
         file.save(file_path)
 
         file_size = os.path.getsize(file_path)
+        task_id = str(uuid4())
         file_metadata = {
             'filename': file.filename,
             'size': file_size,
-            'path': file_path
+            'path': file_path,
+            "task_id": task_id
         }
         print("File metadata:", file_metadata)
 
@@ -56,11 +60,9 @@ def display_file():
     # return render_template("display.html", file_data=file_data, **file_metadata)
     return render_template("display.html",file_data="", file_metadata=file_metadata)
 
-tasks = {}
 
 def background_task(task_id, file_metadata):
-    time.sleep(3)  # Simulate a loading process
-    processor = DDRecovery(file_metadata['path'], 'exif')
+    processor = DDRecovery(file_metadata['path'], 'exif', task_id)
     processor.run()
     tasks[task_id]['status'] = 'completed'
 
@@ -73,25 +75,40 @@ def extract():
     else:
         """Extract metadata from the uploaded file."""
 
-    task_id = str(uuid4())
-    tasks[task_id] = {'status': 'in_progress'}
+    task_id = file_metadata.get("task_id")
+    tasks[task_id] = {
+        'file_name': file_metadata['filename'],
+        'datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'status': 'in_progress'
+    }
 
     thread = Thread(target=background_task, args=(task_id, file_metadata))
     thread.start()
 
-    return redirect(url_for('task_status', task_id=task_id))
+    return redirect(url_for('tasks_list'))
+
+@app.route("/tasks")
+def tasks_list():
+    return render_template("tasks_list.html", tasks=tasks)
 
 @app.route("/task_status/<task_id>")
 def task_status(task_id):
     task = tasks.get(task_id)
     if not task:
         return "Task not found", 404
-    return render_template("task_status.html", task_id=task_id, status=task['status']) 
+    return render_template("task_status.html", task_id=task_id, status=task['status'])
 
 @app.route("/extraction_result")
 def extraction_result():
-    file_data = session.get('file_data')
-    csv_file_path = os.path.join(app.config['RESULTS_FOLDER'], RECOVERED_FILES)
+    task_id = request.args.get('task_id')
+    if not task_id:
+        return "Task ID not provided", 400
+
+    file_metadata = session.get('file_metadata')
+    if not file_metadata or file_metadata.get("task_id") != task_id:
+        return "Invalid task ID", 400
+
+    csv_file_path = os.path.join(app.config['RESULTS_FOLDER'], task_id, file_metadata['filename'] + "_results.csv")
     table_data = []
 
     if os.path.exists(csv_file_path):
@@ -100,12 +117,14 @@ def extraction_result():
             for row in reader:
                 table_data.append(row)
 
-    return render_template("extraction_result.html", file_data=file_data, table_data=table_data)
+    return render_template("extraction_result.html", table_data=table_data)
 
 @app.route("/map_from_csv")
 def map_from_csv():
     """Load GPS coordinates from CSV and add them as markers on a map."""
-    csv_file_path = os.path.join(app.config['RESULTS_FOLDER'], RECOVERED_FILES)
+    file_metadata = session.get('file_metadata')
+    task_id = file_metadata.get("task_id")
+    csv_file_path = os.path.join(app.config['RESULTS_FOLDER'], task_id, file_metadata['filename'] + "_results.csv")
 
     record_with_gps = []
     coordinates = []
