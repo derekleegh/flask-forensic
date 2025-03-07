@@ -98,10 +98,14 @@ def task_status(task_id):
         return "Task not found", 404
     return render_template("task_status.html", task_id=task_id, filename=task["file_name"], status=task['status'])
 
+from datetime import datetime
+
 @app.route("/extraction_result")
 def extraction_result():
     task_id = request.args.get('task_id')
-    filename = request.args.get('filename')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
     if not task_id:
         return "Task ID not provided", 400
 
@@ -116,46 +120,53 @@ def extraction_result():
         with open(csv_file_path, newline='', encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                table_data.append(row)
+                row_date = datetime.strptime(row['datetime'], "%Y:%m:%d %H:%M:%S")
+                if start_date and end_date:
+                    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+                    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+                    if start_date_obj <= row_date <= end_date_obj:
+                        table_data.append(row)
+                else:
+                    table_data.append(row)
+
+    # Store the filtered data in the session
+    session['filtered_data'] = table_data
 
     return render_template("extraction_result.html", table_data=table_data)
 
 @app.route("/map_from_csv")
 def map_from_csv():
     """Load GPS coordinates from CSV and add them as markers on a map."""
-    file_metadata = session.get('file_metadata')
-    task_id = file_metadata.get("task_id")
-    csv_file_path = os.path.join(app.config['RESULTS_FOLDER'], task_id, file_metadata['filename'] + "_results.csv")
+    filtered_data = session.get('filtered_data')
+    if not filtered_data:
+        return "No filtered data available", 400
 
     record_with_gps = []
     coordinates = []
     features = []
 
-    if os.path.exists(csv_file_path):
-        with open(csv_file_path, newline='', encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for idx, row in enumerate(reader, start=1):
-                if row['GPS Coordinates'] and row['datetime']:
-                    coords = row['GPS Coordinates'].strip("()").split(", ")
-                    lat, lon = float(coords[0]), float(coords[1])
-                    coordinates.append([lon, lat])  # GeoJSON uses [lon, lat] format
-                    datetime_str = row['datetime'].replace(" ", "T").replace(":", "-", 2) + "Z"  # Convert to YYYY-MM-DDTHH:MM:SSZ format
+    for row in filtered_data:
+        if row['GPS Coordinates'] and row['datetime']:
+            coords = row['GPS Coordinates'].strip("()").split(", ")
+            lat, lon = float(coords[0]), float(coords[1])
+            coordinates.append([lon, lat])  # GeoJSON uses [lon, lat] format
+            datetime_str = row['datetime'].replace(" ", "T").replace(":", "-", 2) + "Z"  # Convert to YYYY-MM-DDTHH:MM:SSZ format
 
-                    record_with_gps.append({
-                        'lat': lat,
-                        'lon': lon,
-                        'datetime': datetime_str,
-                        'filename': row['fileName'],
-                        'address': row['Address']
-                    })
+            record_with_gps.append({
+                'lat': lat,
+                'lon': lon,
+                'datetime': datetime_str,
+                'filename': row['fileName'],
+                'address': row['Address']
+            })
 
-        # Sort by datetime
+    # Sort by datetime
         record_with_gps = sorted(record_with_gps, key=lambda x: datetime.strptime(x['datetime'], "%Y-%m-%dT%H:%M:%SZ"))
 
-        # Set the map centered around the first coordinate
+    # Set the map centered around the first coordinate
         m = folium.Map(location=[record_with_gps[0]["lat"], record_with_gps[0]["lon"]], zoom_start=10)
 
-        # Create GeoJSON features (this is to generate the line connecting the points)
+    # Create GeoJSON features (this is to generate the line connecting the points)
         for i in range(len(record_with_gps) - 1):
             feature = {
                 "type": "Feature",
@@ -173,7 +184,7 @@ def map_from_csv():
             }
             features.append(feature)
 
-        # Add numbered markers with popups as GeoJSON features
+    # Add numbered markers with popups as GeoJSON features
         for idx, coord in enumerate(record_with_gps, start=1):
             feature = {
                 "type": "Feature",
@@ -195,29 +206,27 @@ def map_from_csv():
             }
             features.append(feature)
 
-        # Create a GeoJSON object
-        geojson = {
-            "type": "FeatureCollection",
-            "features": features
-        }
+    # Create a GeoJSON object
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features
+    }
 
-        # Add the TimestampedGeoJson to the map
-        TimestampedGeoJson(
-            data=json.dumps(geojson),
-            period="PT1H",
-            add_last_point=True,
-            auto_play=False,
-            loop=False,
-            max_speed=1,
-            loop_button=True,
-            date_options='YYYY-MM-DD HH:mm:ss',
-            time_slider_drag_update=True
-        ).add_to(m)
+    # Add the TimestampedGeoJson to the map
+    TimestampedGeoJson(
+        data=json.dumps(geojson),
+        period="PT1H",
+        add_last_point=True,
+        auto_play=False,
+        loop=False,
+        max_speed=1,
+        loop_button=True,
+        date_options='YYYY-MM-DD HH:mm:ss',
+        time_slider_drag_update=True
+    ).add_to(m)
 
-        # Use this to render directly
-        return m.get_root().render()
-    else:
-        return "No GPS coordinates found in the CSV file or no csv file found.Exiting with error"
+    # Use this to render directly
+    return m.get_root().render()
 
     # Use this to render as a template to give more flexibility
     # map_html = m._repr_html_()

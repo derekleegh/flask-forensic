@@ -82,6 +82,15 @@
 <body>
     <div class="container">
         <h1>Extraction Result</h1>
+        <form action="/extraction_result" method="get">
+            <input type="hidden" name="task_id" value="{{ request.args.get('task_id') }}">
+            <input type="hidden" name="filename" value="{{ request.args.get('filename') }}">
+            <label for="start_date">Start Date:</label>
+            <input type="date" id="start_date" name="start_date">
+            <label for="end_date">End Date:</label>
+            <input type="date" id="end_date" name="end_date">
+            <button type="submit">Filter</button>
+        </form>
         {% if table_data %}
         <table>
             <thead>

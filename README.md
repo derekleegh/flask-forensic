@@ -53,3 +53,12 @@ This project is licensed under the MIT License.
 ## Requirements
 - user can upload a dd file
 - 
+
+# TODO
+- show the file metadata
+- allow user to view all the files? from the extraction table
+- allow select deleted files only
+  - alloq user to choose start-end date
+
+10-12000 words
+4-5k on literature review
