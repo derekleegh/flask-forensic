@@ -1,7 +1,6 @@
 import argparse
 import subprocess
 import os
-import shutil
 from uuid import uuid4
 from geopy.geocoders import Nominatim
 from exif import Image
@@ -18,7 +17,7 @@ class DDRecovery:
     def setup_table(self, required_info):
         table = PrettyTable()
         if required_info == "exif":
-            table.field_names = ["fileName", "has EXIF data", 'model', 'make', 'datetime', "GPS Coordinates", "Address"]
+            table.field_names = ["fileName", "has_EXIF_data", 'model', 'make', 'datetime', "GPS Coordinates", "Address"]
         return table
 
     def recover_dd(self):
@@ -26,17 +25,18 @@ class DDRecovery:
         print(f"Performing dd extract on {self.filename} to {self.output_dir}")
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        result = subprocess.run(["foremost", "-o", self.output_dir, self.filename], capture_output=True, text=True)
-        print(f"Result: {result.stdout}")
+        result = subprocess.run(["foremost", "-o", self.output_dir, self.filename], capture_output=True, text=True, errors="ignore")
+        print(f"Result stdout: {result.stdout.encode('utf-8').decode('utf-8')}")
+        print(f"Result stderr: {result.stderr.encode('utf-8').decode('utf-8')}")
 
-        if result.stdout is None:
+        if result.stdout is None or result.stderr is not None:
             print("Extraction successful")
 
     def process_files(self):
         folders = os.listdir(self.output_dir)
 
         for folder in folders:
-            if folder == "audit.txt":
+            if folder in ["audit.txt", "metadata.json"]:
                 continue
 
             files = os.listdir(f"{self.output_dir}/{folder}")

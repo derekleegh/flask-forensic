@@ -87,7 +87,7 @@
                 {% for task_id, task in tasks.items() %}
                 <tr>
                     <td>{{ task_id }}</td>
-                    <td>{{ task['file_name'] }}</td>
+                    <td>{{ task['filename'] }}</td>
                     <td>{{ task['datetime'] }}</td>
                     <td>{{ task['status'].replace('_', ' ').capitalize() }}</td>
                     <td>
@@ -99,7 +99,11 @@
                 {% endfor %}
             </tbody>
         </table>
+        <form action="/" method="get" style="margin-top: 20px;">
+            <button type="submit">Go Back</button>
+        </form>
     </div>
+
 </body>
 
 </html>

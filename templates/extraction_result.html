@@ -17,6 +17,21 @@
         }
 
         .container {
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        table {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        th,
+        td {
+            word-wrap: break-word;
+        }
+
+        .container {
             background-color: #fff;
             padding: 40px;
             border-radius: 10px;
@@ -89,9 +104,13 @@
             <input type="date" id="start_date" name="start_date">
             <label for="end_date">End Date:</label>
             <input type="date" id="end_date" name="end_date">
+            <label for="has_exif">Has EXIF Data:</label>
+            <input type="checkbox" id="has_exif" name="has_exif" value="true" {% if request.args.get('has_exif')=='true'
+                %}checked{% endif %}>
             <button type="submit">Filter</button>
         </form>
         {% if table_data %}
+        <p>Total Files: {{ table_data|length }}</p>
         <table>
             <thead>
                 <tr>
