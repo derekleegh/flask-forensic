@@ -2,10 +2,11 @@ import os
 import csv
 import json
 import hashlib
+import shutil
 from threading import Thread
 from uuid import uuid4
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, send_file
 import folium
 from folium.plugins import TimestampedGeoJson
 from dd_recovery import DDRecovery
@@ -207,6 +208,24 @@ def extraction_result():
 
     return render_template("extraction_result.html", table_data=table_data, total_files=total_files)
 
+@app.route("/download_results", methods=["GET"])
+def download_results():
+    task_id = request.args.get("task_id")
+    if not task_id:
+        return "Task ID not provided", 400
+
+    # Path to the task directory
+    task_dir = os.path.join(app.config["RESULTS_FOLDER"], task_id)
+    if not os.path.exists(task_dir):
+        return "Task directory not found", 404
+
+    # Create a ZIP file for the task directory
+    zip_path = os.path.join(app.config["RESULTS_FOLDER"], f"{task_id}.zip")
+    shutil.make_archive(zip_path.replace(".zip", ""), 'zip', task_dir)
+
+    # Serve the ZIP file for download
+    return send_file(zip_path, as_attachment=True, download_name=f"{task_id}.zip")
+
 @app.route("/map_from_csv")
 def map_from_csv():
     """Load GPS coordinates from CSV and add them as markers on a map."""
@@ -234,50 +253,50 @@ def map_from_csv():
             })
 
     # Sort by datetime
-        record_with_gps = sorted(record_with_gps, key=lambda x: datetime.strptime(x['datetime'], "%Y-%m-%dT%H:%M:%SZ"))
+    record_with_gps = sorted(record_with_gps, key=lambda x: datetime.strptime(x['datetime'], "%Y-%m-%dT%H:%M:%SZ"))
 
     # Set the map centered around the first coordinate
-        m = folium.Map(location=[record_with_gps[0]["lat"], record_with_gps[0]["lon"]], zoom_start=10)
+    m = folium.Map(location=[record_with_gps[0]["lat"], record_with_gps[0]["lon"]], zoom_start=10)
 
     # Create GeoJSON features (this is to generate the line connecting the points)
-        for i in range(len(record_with_gps) - 1):
-            feature = {
-                "type": "Feature",
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": [
-                        [record_with_gps[i]["lon"], record_with_gps[i]["lat"]],
-                        [record_with_gps[i + 1]["lon"], record_with_gps[i + 1]["lat"]]
-                    ]
-                },
-                "properties": {
-                    "times": [record_with_gps[i]["datetime"], record_with_gps[i + 1]["datetime"]],
-                    "style": {"color": "blue", "weight": 5}
-                }
+    for i in range(len(record_with_gps) - 1):
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [record_with_gps[i]["lon"], record_with_gps[i]["lat"]],
+                    [record_with_gps[i + 1]["lon"], record_with_gps[i + 1]["lat"]]
+                ]
+            },
+            "properties": {
+                "times": [record_with_gps[i]["datetime"], record_with_gps[i + 1]["datetime"]],
+                "style": {"color": "blue", "weight": 5}
             }
-            features.append(feature)
+        }
+        features.append(feature)
 
-    # Add numbered markers with popups as GeoJSON features
-        for idx, coord in enumerate(record_with_gps, start=1):
-            feature = {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [coord["lon"], coord["lat"]]
-                },
-                "properties": {
-                    "times": [coord["datetime"]],
-                    "popup": f"""<b>{idx}.</b>
-                        <br>
-                        <b>Filename:</b> {coord['filename']}
-                        <br>
-                        <b>Address:</b> {coord['address']}
-                        <br>
-                        <b>Time:</b> {coord['datetime']}
-                    """
-                }
+# Add numbered markers with popups as GeoJSON features
+    for idx, coord in enumerate(record_with_gps, start=1):
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [coord["lon"], coord["lat"]]
+            },
+            "properties": {
+                "times": [coord["datetime"]],
+                "popup": f"""<b>{idx}.</b>
+                    <br>
+                    <b>Filename:</b> {coord['filename']}
+                    <br>
+                    <b>Address:</b> {coord['address']}
+                    <br>
+                    <b>Time:</b> {coord['datetime']}
+                """
             }
-            features.append(feature)
+        }
+        features.append(feature)
 
     # Create a GeoJSON object
     geojson = {
@@ -301,9 +320,9 @@ def map_from_csv():
     # Use this to render directly
     return m.get_root().render()
 
-    # Use this to render as a template to give more flexibility
-    # map_html = m._repr_html_()
-    # return render_template('timeline.html', map_html=map_html)
+# Use this to render as a template to give more flexibility
+# map_html = m._repr_html_()
+# return render_template('timeline.html', map_html=map_html)
 
 if __name__ == "__main__":
     app.run(debug=True)

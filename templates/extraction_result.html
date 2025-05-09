@@ -138,6 +138,10 @@
         <form action="/map_from_csv" method="get">
             <button type="submit">View Map</button>
         </form>
+        <form action="/download_results" method="get">
+            <input type="hidden" name="task_id" value="{{ request.args.get('task_id') }}">
+            <button type="submit">Download Results</button>
+        </form>
     </div>
 </body>
 
