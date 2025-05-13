@@ -40,8 +40,8 @@ def upload_file():
         file_size = os.path.getsize(file_path)
         task_id = str(uuid4())
 
-        # Calculate the file hash (SHA-256)
-        hasher = hashlib.sha256()
+        # Calculate the file hash (MD5sum)
+        hasher = hashlib.md5()
         with open(file_path, 'rb') as f:
             while chunk := f.read(8192):
                 hasher.update(chunk)
@@ -136,6 +136,10 @@ def tasks_list():
 
     # Sort tasks by datetime
     sorted_tasks = dict(sorted(ttasks.items(), key=lambda x: datetime.strptime(x[1]['datetime'], "%Y-%m-%d %H:%M:%S"), reverse=True))
+
+    # Add a local folder path for each task
+    for task_id, task in sorted_tasks.items():
+        task['local_folder'] = os.path.join(results_folder, task_id)
 
     return render_template("tasks_list.html", tasks=sorted_tasks)
 
@@ -311,7 +315,7 @@ def map_from_csv():
         add_last_point=True,
         auto_play=False,
         loop=False,
-        max_speed=1,
+        max_speed=10,
         loop_button=True,
         date_options='YYYY-MM-DD HH:mm:ss',
         time_slider_drag_update=True
